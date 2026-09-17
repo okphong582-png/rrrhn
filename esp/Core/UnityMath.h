@@ -4,6 +4,7 @@
 #import "Vector3.h"
 #import "Quaternion.h"
 #import "MemoryUtils.h"
+#import "GameOffsets.h"
 #import "utf.h"
 #import <Foundation/Foundation.h>
 

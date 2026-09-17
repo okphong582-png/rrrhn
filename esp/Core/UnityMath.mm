@@ -15,13 +15,13 @@ Vector3 WorldToScreen(Vector3 obj, float *matrix, float screenX, float screenY) 
 }
 
 Vector3 getPositionExt(uint64_t transObj2) {
-    uint64_t transObj = ReadAddr<uint64_t>(transObj2 + 0x10);
+    uint64_t transObj = ReadAddr<uint64_t>(transObj2 + GameOffsets::RuntimeLayout::TransformNode);
     
-    uint64_t matrix = ReadAddr<uint64_t>(transObj + 0x38);
-    uint64_t index = ReadAddr<uint64_t>(transObj + 0x40);
+    uint64_t matrix = ReadAddr<uint64_t>(transObj + GameOffsets::RuntimeLayout::TransformMatrix);
+    uint64_t index = ReadAddr<uint64_t>(transObj + GameOffsets::RuntimeLayout::TransformIndex);
     
-    uint64_t matrix_list = ReadAddr<uint64_t>(matrix + 0x18);
-    uint64_t matrix_indices = ReadAddr<uint64_t>(matrix + 0x20);
+    uint64_t matrix_list = ReadAddr<uint64_t>(matrix + GameOffsets::RuntimeLayout::MatrixList);
+    uint64_t matrix_indices = ReadAddr<uint64_t>(matrix + GameOffsets::RuntimeLayout::MatrixIndices);
     
     Vector3 result = ReadAddr<Vector3>(matrix_list + sizeof(TMatrix) * index);
     int transformIndex = ReadAddr<int>(matrix_indices + sizeof(int) * index);
@@ -58,12 +58,12 @@ Vector3 getPositionExt(uint64_t transObj2) {
 }
 
 NSString *GetNickName(uint64_t PawnObject) {
-    uint64_t name = ReadAddr<uint64_t>(PawnObject + 0x2A0);
+    uint64_t name = ReadAddr<uint64_t>(PawnObject + GameOffsets::Player::Name);
     
     UTF8 PlayerName[32] = "";
     UTF16 buf16[16] = {0};
     
-    _read(name + 0x14, buf16, 28);
+    _read(name + GameOffsets::RuntimeLayout::ManagedStringData, buf16, 28);
     Utf16_To_Utf8(buf16, PlayerName, 28, strictConversion);
     
     return [NSString stringWithUTF8String:(const char *)PlayerName];

@@ -116,10 +116,10 @@ uint64_t Moudule_Base = -1;
 
     if (Moudule_Base == -1) return;
 
-    uint64_t matchGame = getMatchGame(Moudule_Base);
-    if (!isVaildPtr(matchGame)) return;
+    uint64_t gameFacadeStatic = getMatchGame(Moudule_Base);
+    if (!isVaildPtr(gameFacadeStatic)) return;
 
-    uint64_t match = getMatch(matchGame);
+    uint64_t match = getMatch(gameFacadeStatic);
     if (!isVaildPtr(match)) return;
 
     uint64_t myPawnObject = getLocalPlayer(match);
@@ -128,23 +128,26 @@ uint64_t Moudule_Base = -1;
     uint64_t camera = CameraMain(myPawnObject);
     if (!isVaildPtr(camera)) return;
     
-    uint64_t mainCameraTransform = ReadAddr<uint64_t>(myPawnObject + 0x28C);
+    uint64_t mainCameraTransform = ReadAddr<uint64_t>(myPawnObject + GameOffsets::Camera::MainCameraTransform);
     Vector3 myLocation = getPositionExt(mainCameraTransform);
     
-    uint64_t player = ReadAddr<uint64_t>(match + 0x6C);
-    uint64_t tValue = ReadAddr<uint64_t>(player + 0x28);
-    int coutValue = ReadAddr<int>(tValue + 0x18);
+    uint64_t playerDictionary = ReadAddr<uint64_t>(match + GameOffsets::GameFacade::DictionaryEntities);
+    if (!isVaildPtr(playerDictionary)) return;
+
+    uint64_t entries = ReadAddr<uint64_t>(playerDictionary + GameOffsets::RuntimeLayout::DictionaryEntries);
+    int countValue = ReadAddr<int>(playerDictionary + GameOffsets::RuntimeLayout::DictionaryCount);
+    if (!isVaildPtr(entries) || countValue <= 0 || countValue > 1024) return;
     
     float *matrix = GetViewMatrix(camera);
 
-    for (int i = 0; i < coutValue; i++) {
-        uint64_t PawnObject = ReadAddr<uint64_t>(tValue + 0x20 + 8 * i);
+    for (int i = 0; i < countValue; i++) {
+        uint64_t entry = entries + GameOffsets::RuntimeLayout::ArrayData
+                       + GameOffsets::RuntimeLayout::DictionaryEntryStride * i;
+        uint64_t PawnObject = ReadAddr<uint64_t>(entry + GameOffsets::RuntimeLayout::DictionaryEntryValue);
         if (!isVaildPtr(PawnObject)) continue;
 
         bool isLocalTeam = isLocalTeamMate(myPawnObject, PawnObject);
         if (isLocalTeam) continue;
-
-        if (isPlayerDead(PawnObject)) continue;
         
         NSString *Name = GetNickName(PawnObject);
         if (Name.length == 0) continue;
