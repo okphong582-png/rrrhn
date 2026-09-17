@@ -12,9 +12,13 @@ uint64_t getMatch(uint64_t matchgame) {
     return ReadAddr<uint64_t>(matchgame + 0x78);
 }
 
-uint64_t CameraMain(uint64_t matchgame) {
-    uint64_t CameraControllerManager = ReadAddr<uint64_t>(matchgame + 0xD8);
-    return ReadAddr<uint64_t>(CameraControllerManager + 0x18);
+uint64_t CameraMain(uint64_t localPlayer) {
+    uint64_t FollowCamera = ReadAddr<uint64_t>(localPlayer + 0x494);
+    return ReadAddr<uint64_t>(FollowCamera + 0x18);
+}
+
+bool isPlayerDead(uint64_t player) {
+    return ReadAddr<uint8_t>(player + 0x78) != 0;
 }
 
 float* GetViewMatrix(uint64_t cameraMain) {
@@ -22,7 +26,7 @@ float* GetViewMatrix(uint64_t cameraMain) {
     
     static float matrix[16];
     for (int i = 0; i < 16; i++) {
-        matrix[i] = ReadAddr<float>(v1 + 0xD8 + i * 0x4);
+        matrix[i] = ReadAddr<float>(v1 + 0xE8 + i * 0x4);
     }
     
     return matrix;

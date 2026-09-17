@@ -8,7 +8,8 @@
 
 uint64_t getMatchGame(uint64_t Moudule_Base);
 uint64_t getMatch(uint64_t matchgame);
-uint64_t CameraMain(uint64_t matchgame);
+uint64_t CameraMain(uint64_t localPlayer);
+bool isPlayerDead(uint64_t player);
 float* GetViewMatrix(uint64_t cameraMain);
 uint64_t getTransNode(uint64_t BodyPart);
 uint64_t getHead(uint64_t player);

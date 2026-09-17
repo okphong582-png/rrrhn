@@ -117,14 +117,16 @@ uint64_t Moudule_Base = -1;
     if (Moudule_Base == -1) return;
 
     uint64_t matchGame = getMatchGame(Moudule_Base);
-    uint64_t camera = CameraMain(matchGame);
-    if (!isVaildPtr(camera)) return;
+    if (!isVaildPtr(matchGame)) return;
 
     uint64_t match = getMatch(matchGame);
     if (!isVaildPtr(match)) return;
 
     uint64_t myPawnObject = getLocalPlayer(match);
     if (!isVaildPtr(myPawnObject)) return;
+
+    uint64_t camera = CameraMain(myPawnObject);
+    if (!isVaildPtr(camera)) return;
     
     uint64_t mainCameraTransform = ReadAddr<uint64_t>(myPawnObject + 0x28C);
     Vector3 myLocation = getPositionExt(mainCameraTransform);
@@ -141,6 +143,8 @@ uint64_t Moudule_Base = -1;
 
         bool isLocalTeam = isLocalTeamMate(myPawnObject, PawnObject);
         if (isLocalTeam) continue;
+
+        if (isPlayerDead(PawnObject)) continue;
         
         NSString *Name = GetNickName(PawnObject);
         if (Name.length == 0) continue;
