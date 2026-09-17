@@ -1,0 +1,92 @@
+name: Build TIPA
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Tạo GitHub Release cho bản build này?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build .tipa Package
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache Theos and SDK
+        id: cache-theos
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/theos
+          key: theos-sdk-16.5-v1
+
+      - name: Install Build Tools (Homebrew)
+        run: |
+          brew install ldid dpkg xz
+
+      - name: Setup Theos & iOS SDK
+        run: |
+          if [ ! -d "$HOME/theos" ]; then
+            git clone --recursive https://github.com/theos/theos.git "$HOME/theos"
+          fi
+          
+          mkdir -p "$HOME/theos/sdks"
+          if [ ! -d "$HOME/theos/sdks/iPhoneOS16.5.sdk" ]; then
+            echo "Downloading iOS 16.5 Patched SDK..."
+            curl -fsSL https://github.com/theos/sdks/releases/download/master-146e41f/iPhoneOS16.5.sdk.tar.xz -o /tmp/iPhoneOS16.5.sdk.tar.xz
+            tar -xf /tmp/iPhoneOS16.5.sdk.tar.xz -C "$HOME/theos/sdks"
+            rm -f /tmp/iPhoneOS16.5.sdk.tar.xz
+          fi
+          
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          echo "$HOME/theos/bin" >> $GITHUB_PATH
+
+      - name: Build TIPA with Theos
+        run: |
+          make clean package FINALPACKAGE=1
+
+      - name: Inspect Build Artifacts
+        run: |
+          ls -la packages/
+          echo "Build finished successfully!"
+
+      - name: Upload TIPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrollSpeed-TIPA
+          path: |
+            packages/*.tipa
+            packages/*.deb
+          if-no-files-found: error
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.create_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Release v1.0.{0}', github.run_number) }}
+          files: |
+            packages/*.tipa
+            packages/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
