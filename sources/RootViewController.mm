@@ -42,9 +42,9 @@ static const CGFloat _gAuthorLabelBottomConstraintConstantRegular = -80.f;
     self.backgroundView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.backgroundView.backgroundColor = [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
         if ([traitCollection userInterfaceStyle] == UIUserInterfaceStyleDark) {
-            return [UIColor colorWithRed:82/255.0 green:28/255.0 blue:28/255.0 alpha:1.0];  // rgba(82, 28, 28, 1.0)
+            return [UIColor colorWithRed:28/255.0 green:74/255.0 blue:82/255.0 alpha:1.0];  // rgba(28, 74, 82, 1.0)
         } else {
-            return [UIColor colorWithRed:188/255.0 green:26/255.0 blue:26/255.0 alpha:1.0];  // rgba(188, 26, 26, 1.0)
+            return [UIColor colorWithRed:26/255.0 green:188/255.0 blue:156/255.0 alpha:1.0];  // rgba(26, 188, 156, 1.0)
         }
     }];
     [self.view addSubview:self.backgroundView];

@@ -1,16 +1,16 @@
 #import "esp.h"
-#include <cmath>
+
+#define sWidth  [UIScreen mainScreen].bounds.size.width
+#define sHeight [UIScreen mainScreen].bounds.size.height
 
 @interface ESP_View ()
 @property (nonatomic, strong) NSMutableArray<CALayer *> *layers;
 @property (nonatomic, strong) CADisplayLink *displayLink;
 @property (nonatomic, strong) CADisplayLink *displayLinkDATA;
 @property (nonatomic, strong) NSArray<NSValue *> *boxesData;
-@property (nonatomic, assign) CFTimeInterval lastAttachAttempt;
-- (NSArray<NSValue *> *)collectBoxes;
 @end
 
-uint64_t Moudule_Base = 0;
+uint64_t Moudule_Base = -1;
 
 @implementation ESP_View
 
@@ -20,6 +20,11 @@ uint64_t Moudule_Base = 0;
     if (self) {
         self.layers = [NSMutableArray array];
         self.backgroundColor = [UIColor clearColor];
+
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            Moudule_Base = (uint64_t)GetGameModule_Base((char*)"freefireth");
+        });
 
         self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(updateBoxes)];
         [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
@@ -99,90 +104,68 @@ uint64_t Moudule_Base = 0;
 
 - (void)update_data
 {
-    // Always publish the result so failed reads clear boxes from the old match.
-    self.boxes = [self collectBoxes];
-}
-
-- (NSArray<NSValue *> *)collectBoxes
-{
+    CFTimeInterval t = CACurrentMediaTime();
     CGSize size = self.bounds.size;
-    if (size.width <= 0 || size.height <= 0) return @[];
+    
+    const NSInteger boxCount = 10;
+    const CGFloat baseWidth = 60.0;
+    const CGFloat baseHeight = 120.0;
 
-    if (Moudule_Base == 0) {
-        CFTimeInterval now = CACurrentMediaTime();
-        if (now - self.lastAttachAttempt < 1.0) return @[];
-        self.lastAttachAttempt = now;
-        Moudule_Base = (uint64_t)GetGameModule_Base((char*)"freefireth");
-        if (Moudule_Base == 0) return @[];
-    }
+    NSMutableArray<NSValue *> *boxesMutable = [NSMutableArray arrayWithCapacity:boxCount];
+    int countObject = 0;
 
-    uint64_t typeInfo = 0;
-    if (!_read(Moudule_Base + GameOffsets::GameFacade_TypeInfo, &typeInfo, sizeof(typeInfo))) {
-        Moudule_Base = 0;
-        return @[];
-    }
+    if (Moudule_Base == -1) return;
 
     uint64_t matchGame = getMatchGame(Moudule_Base);
-    if (!isVaildPtr(matchGame)) return @[];
+    uint64_t camera = CameraMain(matchGame);
+    if (!isVaildPtr(camera)) return;
 
     uint64_t match = getMatch(matchGame);
-    if (!isVaildPtr(match)) return @[];
+    if (!isVaildPtr(match)) return;
 
     uint64_t myPawnObject = getLocalPlayer(match);
-    if (!isVaildPtr(myPawnObject)) return @[];
-
-    uint64_t camera = CameraMain(myPawnObject);
-    if (!isVaildPtr(camera)) return @[];
+    if (!isVaildPtr(myPawnObject)) return;
     
-    uint64_t mainCameraTransform = ReadAddr<uint64_t>(myPawnObject + GameOffsets::MainCameraTransform);
-    Vector3 myLocation;
-    if (!getPositionExt(mainCameraTransform, myLocation)) return @[];
+    uint64_t mainCameraTransform = ReadAddr<uint64_t>(myPawnObject + 0x28C);
+    Vector3 myLocation = getPositionExt(mainCameraTransform);
     
-    uint64_t player = ReadAddr<uint64_t>(match + GameOffsets::DictionaryEntities);
-    if (!isVaildPtr(player)) return @[];
-    // Original ARM64 collection/array layout; ofs.txt only names the field.
+    uint64_t player = ReadAddr<uint64_t>(match + 0x6C);
     uint64_t tValue = ReadAddr<uint64_t>(player + 0x28);
-    if (!isVaildPtr(tValue)) return @[];
     int coutValue = ReadAddr<int>(tValue + 0x18);
-    if (coutValue <= 0 || coutValue > 1024) return @[];
     
     float *matrix = GetViewMatrix(camera);
-    if (matrix == nullptr) return @[];
-    for (int i = 0; i < 16; ++i) {
-        if (!std::isfinite(matrix[i])) return @[];
-    }
-
-    NSMutableArray<NSValue *> *boxesMutable = [NSMutableArray arrayWithCapacity:coutValue];
 
     for (int i = 0; i < coutValue; i++) {
-        uint64_t PawnObject = ReadAddr<uint64_t>(tValue + 0x20 + sizeof(uint64_t) * i);
-        if (!isVaildPtr(PawnObject) || PawnObject == myPawnObject) continue;
-        if (ReadAddr<uint8_t>(PawnObject + GameOffsets::Player_IsDead) != 0) continue;
+        uint64_t PawnObject = ReadAddr<uint64_t>(tValue + 0x20 + 8 * i);
+        if (!isVaildPtr(PawnObject)) continue;
 
         bool isLocalTeam = isLocalTeamMate(myPawnObject, PawnObject);
         if (isLocalTeam) continue;
         
-        // Names and HP are not rendered by this box-only view. A failed name
-        // read must not suppress an otherwise valid box.
-        Vector3 HeadLocation;
-        Vector3 RightFootPos;
-        if (!getPositionExt(getHead(PawnObject), HeadLocation) ||
-            !getPositionExt(getRightFoot(PawnObject), RightFootPos)) continue;
+        NSString *Name = GetNickName(PawnObject);
+        if (Name.length == 0) continue;
+
+        int CurHP = get_CurHP(PawnObject);
+        int MaxHP = get_MaxHP(PawnObject);
+
+        Vector3 HeadLocation     = getPositionExt(getHead(PawnObject));
         HeadLocation.y           += 0.2f;
+
+        Vector3 RightToePos      = getPositionExt(getRightToeNode(PawnObject));
         
-        Vector3 w2sHeadLocation = WorldToScreen(HeadLocation, matrix, size.width, size.height);
-        Vector3 w2sRightFootPos = WorldToScreen(RightFootPos, matrix, size.width, size.height);
-        if (w2sHeadLocation.z < 0.5f || w2sRightFootPos.z < 0.5f) continue;
+        Vector3 w2sHeadLocation  = WorldToScreen(HeadLocation, matrix, sWidth, sHeight);
+        Vector3 w2sRightToePos   = WorldToScreen(RightToePos, matrix, sWidth, sHeight);
         
         float dis = Vector3::Distance(myLocation, HeadLocation);
-        if (!std::isfinite(dis) || dis > 220.0f) continue;
+        if (dis > 220.0f) continue;
+        
+        countObject++;
 
-        float boxHeight = std::fabs(w2sHeadLocation.y - w2sRightFootPos.y);
+        float boxHeight = abs(w2sHeadLocation.y - w2sRightToePos.y);
         float boxWidth = boxHeight * 0.5f;
         float x = w2sHeadLocation.x - boxWidth * 0.5f;
         float y = w2sHeadLocation.y;
-        if (!std::isfinite(x) || !std::isfinite(y) ||
-            !std::isfinite(boxHeight) || boxHeight <= 0.0f) continue;
+        CGRect box = CGRectMake(x, y, boxWidth, boxHeight);
 
         ESPBox espBox;
         espBox.pos.x = x;
@@ -194,7 +177,10 @@ uint64_t Moudule_Base = 0;
         [boxesMutable addObject:val];
     }
 
-    return boxesMutable;
+    NSLog(@"[Flork] Count: %d", countObject);
+    
+    self.boxes = boxesMutable;
+    [self setNeedsDisplay];
 }
 
 

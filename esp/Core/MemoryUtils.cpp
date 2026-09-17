@@ -1,16 +1,5 @@
 #import "MemoryUtils.h"
 
-#include <cerrno>
-#include <cstdlib>
-#include <cstring>
-
-static void ReleaseGameTask() {
-    if (get_task != MACH_PORT_NULL) {
-        mach_port_deallocate(mach_task_self(), get_task);
-        get_task = MACH_PORT_NULL;
-    }
-}
-
 pid_t GetGameProcesspid(char* GameProcessName) {
     size_t length = 0;
     static const int name[] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
@@ -51,13 +40,11 @@ pid_t GetGameProcesspid(char* GameProcessName) {
 }
 
 vm_map_offset_t GetGameModule_Base(char* GameProcessName) {
-    ReleaseGameTask();
-
-    mach_vm_address_t vmoffset = 0;
-    mach_vm_size_t vmsize = 0;
+    vm_map_offset_t vmoffset = 0;
+    vm_map_size_t vmsize = 0;
     uint32_t nesting_depth = 0;
-    struct vm_region_submap_info_64 vbr{};
-    mach_msg_type_number_t vbrcount = VM_REGION_SUBMAP_INFO_COUNT_64;
+    struct vm_region_submap_info_64 vbr;
+    mach_msg_type_number_t vbrcount = 16;
     
     pid_t pid = GetGameProcesspid(GameProcessName);
     if (pid == -1) {
@@ -65,23 +52,20 @@ vm_map_offset_t GetGameModule_Base(char* GameProcessName) {
     }
     
     kern_return_t kret = task_for_pid(mach_task_self(), pid, &get_task);
-    if (kret != KERN_SUCCESS || get_task == MACH_PORT_NULL) {
-        ReleaseGameTask();
-        return 0;
+    
+    if (get_task != MACH_PORT_NULL) {
+        kern_return_t kr = mach_vm_region_recurse(get_task, &vmoffset, &vmsize, &nesting_depth, (vm_region_recurse_info_t)&vbr, &vbrcount);
+        if (kr == KERN_SUCCESS) {
+            return vmoffset;
+        }
     }
-
-    kern_return_t kr = mach_vm_region_recurse(get_task, &vmoffset, &vmsize, &nesting_depth, (vm_region_recurse_info_t)&vbr, &vbrcount);
-    if (kr == KERN_SUCCESS && vmoffset != 0) {
-        return vmoffset;
-    }
-
-    ReleaseGameTask();
+    
     return 0;
 }
 
 bool _read(long addr, void *buffer, int len)
 {
-    if (get_task == MACH_PORT_NULL || buffer == nullptr || len <= 0 || !isVaildPtr(addr)) return false;
+    if (!isVaildPtr(addr)) return false;
     vm_size_t size = 0;
     kern_return_t error = vm_read_overwrite(get_task, (vm_address_t)addr, len, (vm_address_t)buffer, &size);
     if(error != KERN_SUCCESS || size != len)

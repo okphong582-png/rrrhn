@@ -30,7 +30,7 @@ struct COW_GamePlay_PlayerID_o {
 #pragma mark - Function Unity
 
 Vector3 WorldToScreen(Vector3 obj, float *matrix, float screenX, float screenY);
-bool getPositionExt(uint64_t transObj2, Vector3 &position);
+Vector3 getPositionExt(uint64_t transObj2);
 NSString *GetNickName(uint64_t PawnObject);
 
 #endif

@@ -3,28 +3,27 @@
 #pragma mark - Function Game
 
 uint64_t getMatchGame(uint64_t Moudule_Base) {
-    uint64_t GameFacade_TypeInfo = ReadAddr<uint64_t>(Moudule_Base + GameOffsets::GameFacade_TypeInfo);
-    uint64_t GameFacade_Static = ReadAddr<uint64_t>(GameFacade_TypeInfo + GameOffsets::StaticClass);
+    uint64_t GameFacade_TypeInfo = ReadAddr<uint64_t>(Moudule_Base + 0xA3460EC);
+    uint64_t GameFacade_Static = ReadAddr<uint64_t>(GameFacade_TypeInfo + 0x60);
     return ReadAddr<uint64_t>(GameFacade_Static + 0x0);
 }
 
 uint64_t getMatch(uint64_t matchgame) {
-    return ReadAddr<uint64_t>(matchgame + GameOffsets::CurrentMatch);
+    return ReadAddr<uint64_t>(matchgame + 0x78);
 }
 
-uint64_t CameraMain(uint64_t localPlayer) {
-    // ofs.txt supplies the player FollowCamera chain, not the old match-game
-    // CameraControllerManager field. Validate this chain on the target build.
-    uint64_t followCamera = ReadAddr<uint64_t>(localPlayer + GameOffsets::FollowCamera);
-    return ReadAddr<uint64_t>(followCamera + GameOffsets::Camera);
+uint64_t CameraMain(uint64_t matchgame) {
+    uint64_t CameraControllerManager = ReadAddr<uint64_t>(matchgame + 0xD8);
+    return ReadAddr<uint64_t>(CameraControllerManager + 0x18);
 }
 
 float* GetViewMatrix(uint64_t cameraMain) {
-    // Native Unity camera pointer: original ARM64 layout, not in ofs.txt.
     uint64_t v1 = ReadAddr<uint64_t>(cameraMain + 0x10);
     
     static float matrix[16];
-    if (!_read(v1 + GameOffsets::ViewMatrix, matrix, sizeof(matrix))) return nullptr;
+    for (int i = 0; i < 16; i++) {
+        matrix[i] = ReadAddr<float>(v1 + 0xD8 + i * 0x4);
+    }
     
     return matrix;
 }
@@ -34,25 +33,22 @@ uint64_t getTransNode(uint64_t BodyPart) {
 }
 
 uint64_t getHead(uint64_t player) {
-    uint64_t BodyPart = ReadAddr<uint64_t>(player + GameOffsets::Head);
+    uint64_t BodyPart = ReadAddr<uint64_t>(player + 0x49C);
     return getTransNode(BodyPart);
 }
 
-uint64_t getRightFoot(uint64_t player) {
-    uint64_t BodyPart = ReadAddr<uint64_t>(player + GameOffsets::RightFoot);
+uint64_t getRightToeNode(uint64_t player) {
+    uint64_t BodyPart = ReadAddr<uint64_t>(player + 0x4C4);
     return getTransNode(BodyPart);
 }
 
 uint64_t getLocalPlayer(uint64_t match) {
-    return ReadAddr<uint64_t>(match + GameOffsets::LocalPlayer);
+    return ReadAddr<uint64_t>(match + 0xC0);
 }
 
 bool isLocalTeamMate(uint64_t localPlayer, uint64_t Player) {
-    COW_GamePlay_PlayerID_o myPlayerID{};
-    COW_GamePlay_PlayerID_o PlayerID{};
-    // Skip entities whose team cannot be read instead of comparing invented IDs.
-    if (!_read(localPlayer + GameOffsets::PlayerID, &myPlayerID, sizeof(myPlayerID)) ||
-        !_read(Player + GameOffsets::PlayerID, &PlayerID, sizeof(PlayerID))) return true;
+    COW_GamePlay_PlayerID_o myPlayerID = ReadAddr<COW_GamePlay_PlayerID_o>(localPlayer + 0x260);
+    COW_GamePlay_PlayerID_o PlayerID = ReadAddr<COW_GamePlay_PlayerID_o>(Player + 0x260);
     
     int myTeamID = myPlayerID.m_TeamID;
     int TeamID = PlayerID.m_TeamID;
@@ -61,8 +57,7 @@ bool isLocalTeamMate(uint64_t localPlayer, uint64_t Player) {
 }
 
 int GetDataUInt16(uint64_t player, int varID) {
-    // Keep the original pool layout; ofs.txt only supplies the outer field.
-    uint64_t IPRIDataPool = ReadAddr<uint64_t>(player + GameOffsets::Player_Data);
+    uint64_t IPRIDataPool = ReadAddr<uint64_t>(player + 0x68);
     if (isVaildPtr(IPRIDataPool)) {
         uint64_t v2 = ReadAddr<uint64_t>(IPRIDataPool + 0x10);
         uint64_t v4 = ReadAddr<uint64_t>(v2 + 0x8 * varID + 0x20);
